@@ -1,0 +1,102 @@
+---
+title: "Machine Learning - Prediction (Week 4 Project)"
+author: "Sri"
+date: "February 23, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction & Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+## Prepare the data for analysis
+
+Download the file to the working directory, by clicking the link above. It helps improves the performance significantly. A large number of columns contains NAs, so removing them will speed up the analysis. To make the results reproducible, seed of 2017 is used throughout the code.
+
+Our outcome variable is Classe with 5 levels. Class A refers to execution of the exercise, while the other 4 refers to mistakes. Cross validation is performed by partioning the training data into 70% training anad 30% sub-test set.
+
+
+```{r echo=TRUE, message=FALSE}
+# Load the necessary libraries
+library(caret)
+library(rpart)
+library(randomForest)
+library(rattle)
+
+# Lead the data (from local dir for improved performance)
+dfTrain <- read.csv("pml-training.csv", na.strings = c("NA", " ", ""))
+dfTest <- read.csv("pml-testing.csv", na.strings = c("NA", " ", ""))
+
+# Remove first few columns & near zero variance
+dfTrain <- dfTrain[, -(1:5)]
+dfTest <- dfTest[, -(1:5)]
+
+nzv <- nearZeroVar(dfTrain)
+dfTrain <- dfTrain[, -nzv]
+dfTest <- dfTest[, -nzv]
+
+# Remove columns that are mostly NAs
+naCols <- sapply(dfTrain, function(x) mean(is.na(x))) > 0.95
+dfTest <- dfTest[, naCols==FALSE]
+dfTrain <- dfTrain[, naCols==FALSE]
+
+# Prepare the training & testing set
+set.seed(2017)
+train <- createDataPartition(y=dfTrain$classe, p = 0.70, list = FALSE)
+training <- dfTrain[train,]
+testing <- dfTrain[-train,]
+```
+
+## Prediction model selection
+
+We are going to try two models (Decision Tree & Random Forest) and compare their accuracy with ConfusionMatrix. The expected out-of-sample error is 1 - accuracy. So, we will be looking out for the model with greatest accuracy.
+
+### Prediction - Decision Tree
+
+```{r echo=TRUE, message=FALSE}
+set.seed(2017)
+fitDT <- rpart(classe ~ ., data=training, method="class")
+predictDT <- predict(fitDT, testing, type="class")
+confusionMatrix(predictDT, testing$classe)
+```
+
+The accuracy of the model is 0.8357. Let see the plot of the model.
+
+```{r echo=TRUE, message=FALSE}
+fancyRpartPlot(fitDT)
+```
+
+### Prediction - Random Forest
+
+```{r echo=TRUE, message=FALSE}
+set.seed(2017)
+fitRF <- randomForest(classe ~ ., data=training)
+predictRF <- predict(fitRF, testing, type="Class")
+confusionMatrix(predictRF, testing$classe)
+```
+
+The accuracy of this model is 0.9978. The accuracy of this model makes it the best candidate to use on the testing data.
+
+## Predict - Test Set
+
+The Random Forest model makes a better fit, so it will be applied to the 20 quiz test data (the test set).
+
+```{r echo=TRUE, message=FALSE}
+
+predict(fitRF, newdata = dfTest)
+
+```
